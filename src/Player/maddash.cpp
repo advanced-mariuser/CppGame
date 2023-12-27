@@ -40,8 +40,6 @@ static void updateMadDashDirection(MadDash &maddash) {
     } else if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) && maddash.direction == Direction::ONLYDOWN) {
         maddash.direction = Direction::ONLYUP;
     }
-
-    checkBoost = 0;
 }
 
 void initializeMadDash(MadDash &maddash) {

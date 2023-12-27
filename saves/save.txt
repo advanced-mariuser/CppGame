@@ -1,2 +1,2 @@
-lastCoins = 24
+lastCoins = 7
 boost = 1
