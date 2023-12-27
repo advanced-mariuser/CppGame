@@ -4,7 +4,6 @@
 #include "../Field/field.h"
 #include "../Menu/menu.h"
 #include "../Button/button.h"
-#include "../GameSettings/gamesettings.h"
 #include <map>
 #include <SFML/Graphics.hpp>
 
