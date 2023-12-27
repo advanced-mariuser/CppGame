@@ -1,19 +1,26 @@
-#include "gamescene.h"
-#include "windows.h"
+#include "GameScene/gamescene.h"
+#include <windows.h>
+#include <iostream>
+#include <fstream>
 #include <SFML/Graphics.hpp>
 
-void handleEvents(sf::RenderWindow &window) {
+void handleEvents(sf::RenderWindow &window, GameScene &scene) {
+
     sf::Event event{};
     while (window.pollEvent(event)) {
-        // Кнопка закрытия окна
-        if (event.type == sf::Event::Closed) {
-            window.close();
+        switch (event.type)
+        {
+            case sf::Event::Closed:
+                window.close();
+                break;
+            default:
+                break;
         }
     }
 }
 
-void update(float elapsedTime, GameScene& scene, sf::View &view) {
-    updateGameScene(scene, elapsedTime, view);
+void update(float elapsedTime, GameScene& scene, sf::View &view, sf::RenderWindow &window) {
+    updateGameScene(scene, elapsedTime, view, window);
 }
 
 void render(sf::RenderWindow &window, GameScene& scene, sf::View &view, float elapsedTime) {
@@ -23,7 +30,7 @@ void render(sf::RenderWindow &window, GameScene& scene, sf::View &view, float el
     window.display();
 }
 
-int main(int, char *[]) {
+int main() {
     sf::ContextSettings settings;
     settings.antialiasingLevel = 4;
 
@@ -31,26 +38,36 @@ int main(int, char *[]) {
 
     sf::Image icon;
     if (!icon.loadFromFile("../media/icon.png")) {
-        // Handle error
+        exit(1);
     }
 
-    // Set the window's icon
     window.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
 
     sf::Clock clock;
     sf::View view(sf::FloatRect(0.f, 0.f, 1600.f, 758.f));
     window.setView(view);
+    window.setTitle("Mad-Dash");
 
     GameScene scene;
-    initializeGameScene(scene, sf::Vector2f(window.getSize()));
+    scene.gameState = GameState::Start;
+    initializeGameScene(scene);
 
     while (window.isOpen()) {
-        handleEvents(window);
+        handleEvents(window, scene);
         const float elapsedTime = clock.getElapsedTime().asSeconds();
         clock.restart();
-        update(elapsedTime, scene, view);
-        window.setTitle(getGameSceneWindowTitle(scene));
+        update(elapsedTime, scene, view, window);
+
         render(window, scene, view, elapsedTime);
+    }
+
+    std::ofstream outfile("C:/iSpring/C++ Game/CppGame/saves/save.txt");
+    if (outfile.is_open()) {
+        outfile << "lastCoins = " << scene.totalCoinsCount << std::endl;
+        outfile << "boost = " << scene.boost << std::endl;
+        outfile.close();
+    } else {
+        std::cerr << "Unable to open file for writing." << std::endl;
     }
 
     return 0;

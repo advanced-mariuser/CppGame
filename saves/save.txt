@@ -1,0 +1,2 @@
+lastCoins = 24
+boost = 1

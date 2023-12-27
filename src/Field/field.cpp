@@ -1,6 +1,5 @@
 #include "field.h"
-#include "madDash.h"
-#include "iostream"
+#include <iostream>
 #include <SFML/Graphics.hpp>
 #include <cmath>
 #include <limits>
@@ -8,12 +7,16 @@
 
 struct FieldGraphics {
     sf::RectangleShape roadShape;
+    sf::Texture roadTexture;
+
     sf::RectangleShape endShape;
-    sf::RectangleShape wallShape;
+    sf::Texture endTexture;
+
+    sf::Sprite wallShape;
+    sf::Texture wallTexture;
+
     sf::CircleShape coinShape;
     sf::Texture coinTexture;
-    sf::Texture roadTexture;
-    sf::Texture endTexture;
 };
 
 FieldGraphics graphics;
@@ -27,34 +30,33 @@ static const float MIN_COIN_OVERLAP_AREA = 400.f;
 static const float EPSILON = std::numeric_limits<float>::epsilon();
 static const float MAX_SHIFT = 0.5f * BLOCK_SIZE;
 
-static const size_t FIELD_WIDTH = 67;
+static const size_t FIELD_WIDTH = 86;
 static const size_t FIELD_HEIGHT = 23;
 
-static const char FIELD_MAZE[] = "###################################################################"
-                                 "#                                                                 E"
-                                 "#                                                                 E"
-                                 "#                                                                 E"
-                                 "#@                                                                E"
-                                 "#                                                                 E"
-                                 "#                                            $                    E"
-                                 "#                                                                 E"
-                                 "#                       #####                                     E"
-                                 "#                       #                                         E"
-                                 "#                       #                                         E"
-                                 "#               $                                                 E"
-                                 "#                                                                 E"
-                                 "#                                                                 E"
-                                 "#                                                                 E"
-                                 "#       $                                                         E"
-                                 "#                                     ######     $                E"
-                                 "#       #                                                         E"
-                                 "#       #                                      #                  E"
-                                 "#       #                                      #                  E"
-                                 "#       #               #                                         E"
-                                 "#       #               #                                         E"
-                                 "###################################################################";
+static const char FIELD_MAZE[] = "######################################################################################"
+                                 "#                                                                   #                E"
+                                 "#               $$$                                                 #                E"
+                                 "#                                                                   #    $$$         E"
+                                 "#@                                                                  #                E"
+                                 "#                                                                   #                E"
+                                 "#                                            $$$                #####                E"
+                                 "#                                                                                    E"
+                                 "#                       #####                                                        E"
+                                 "#                       #                                                            E"
+                                 "#                       #                                                            E"
+                                 "#               $$$                                                $$$               E"
+                                 "#                                              #                              #      E"
+                                 "#                                              #                              #      E"
+                                 "#                                              #                                     E"
+                                 "#       $$$             #                      #                                     E"
+                                 "#                       #                  $$$ #               ######                E"
+                                 "#       #               #                      #                    #                E"
+                                 "#       #               #                      #                    #                E"
+                                 "#       #               #                      #                                     E"
+                                 "#       #               #                                                            E"
+                                 "#       #            $  #                               $$$                          E"
+                                 "######################################################################################";
 
-static const sf::Color WALL_COLOR = sf::Color(166, 191, 172);
 static const sf::Color ROAD_COLOR = sf::Color(230, 232, 210);
 
 static const sf::IntRect FRAME_COINS_LEFT(0, 0, 12, 12);
@@ -62,14 +64,8 @@ static const sf::IntRect FRAME_COINS_CENTER(12, 0, 12, 12);
 static const sf::IntRect FRAME_COINS_RIGHT(24, 0, 12, 12);
 static const sf::IntRect FRAME_COINS_RIGHTER(35, 0, 12, 12);
 
-static const sf::IntRect FRAME_ROAD_LEFT(0, 0, 27, 38);
-static const sf::IntRect FRAME_ROAD_CENTER(27, 0, 27, 38);
-static const sf::IntRect FRAME_ROAD_RIGHT(54, 0, 27, 38);
-static const sf::IntRect FRAME_ROAD_RIGHTER(81, 0, 27, 38);
-
-// Размещаем переменные, указанные в заголовке как `extern`.
-const char COIN_TEXTURE[] = "../media/coin.png";
-const char ROAD_TEXTURE[] = "../media/background.png";
+const char COIN_TEXTURE[] = "../media/field/coin.png";
+const char WALL_TEXTURE[] = "../media/field/block.png";
 
 float animationMovement = 0.0f;
 
@@ -78,12 +74,15 @@ void initFieldGraphics(FieldGraphics &graphics) {
         exit(1);
     }
 
-    if (!graphics.endTexture.loadFromFile(ROAD_TEXTURE)) {
+    if (!graphics.endTexture.loadFromFile(WALL_TEXTURE)) {
         exit(1);
     }
 
-    graphics.wallShape.setFillColor(WALL_COLOR);
-    graphics.wallShape.setSize({BLOCK_SIZE, BLOCK_SIZE});
+    if (!graphics.wallTexture.loadFromFile(WALL_TEXTURE)) {
+        exit(1);
+    }
+
+    graphics.wallShape.setTexture(graphics.wallTexture);
     graphics.roadShape.setFillColor(ROAD_COLOR);
     graphics.roadShape.setSize({BLOCK_SIZE, BLOCK_SIZE});
     graphics.coinShape.setRadius(COIN_RADIUS);
@@ -135,7 +134,6 @@ static Direction selectShiftDirection(float rightShift,
 }
 
 
-// Находит символ '@' в исходной карте лабиринта.
 sf::Vector2f getMadDashStartPosition() {
     for (size_t y = 0; y < FIELD_HEIGHT; y++) {
         for (size_t x = 0; x < FIELD_WIDTH; x++) {
@@ -150,9 +148,12 @@ sf::Vector2f getMadDashStartPosition() {
 
 void initializeField(Field &field) {
     initFieldGraphics(graphics);
+
     field.width = FIELD_WIDTH;
     field.height = FIELD_HEIGHT;
+
     field.cells = new Cell[field.width * field.height];
+
     for (size_t y = 0; y < field.height; y++) {
         for (size_t x = 0; x < field.width; x++) {
             const size_t offset = x + y * field.width;
@@ -182,22 +183,23 @@ void initializeField(Field &field) {
     }
 }
 
-unsigned eatAllCoinsInBounds(const Field &field, const sf::FloatRect &bounds) {
+unsigned eatCoinsInBounds(const Field &field, const sf::FloatRect &bounds) {
     unsigned coinsCount = 0;
+
     for (size_t i = 0, n = field.width * field.height; i < n; i++) {
         Cell &cell = field.cells[i];
         if (cell.category != CellCategory::COINS) {
             continue;
         }
+
         sf::FloatRect intersection;
-        // Нужно не просто пересекаться с печеньем, но и иметь
-        // достаточную площадь пересечения.
         if (cell.bounds.intersects(bounds, intersection)
             && (getArea(intersection) >= MIN_COIN_OVERLAP_AREA)) {
             ++coinsCount;
             cell.category = CellCategory::ROAD;
         }
     }
+
     return coinsCount;
 }
 
@@ -222,8 +224,7 @@ void drawField(sf::RenderWindow &window, const Field &field, float elapsedTime) 
             case CellCategory::COINS:
                 graphics.roadShape.setPosition(position);
                 graphics.coinShape.setPosition(center.x - COIN_RADIUS, center.y - COIN_RADIUS);
-                if (animationMovement <= 10.1f)
-                {
+                if (animationMovement <= 10.1f) {
                     if (animationMovement <= 2.5f) {
                         graphics.coinShape.setTextureRect(FRAME_COINS_LEFT);
                     };
@@ -236,9 +237,7 @@ void drawField(sf::RenderWindow &window, const Field &field, float elapsedTime) 
                     if (animationMovement <= 1.0f && animationMovement >= 7.5f) {
                         graphics.coinShape.setTextureRect(FRAME_COINS_RIGHTER);
                     };
-                }
-                else
-                {
+                } else {
                     animationMovement = 0.0f;
                 }
 
@@ -253,9 +252,6 @@ void drawField(sf::RenderWindow &window, const Field &field, float elapsedTime) 
     }
 }
 
-// Модифицирует вектор перемещения, избегая столкновения
-// прямоугольника `rect` со стенами лабиринта в поле `field`.
-// Возвращает `true`, если вектор перемещения изменён.
 bool
 checkFieldWallsCollision(const Field &field, const sf::FloatRect &oldBounds, sf::Vector2f &movement, MadDash &maddash) {
     sf::FloatRect newBounds = moveRect(oldBounds, movement);
@@ -286,6 +282,7 @@ checkFieldWallsCollision(const Field &field, const sf::FloatRect &oldBounds, sf:
             switch (direction) {
                 case Direction::UP:
                     movement.y -= topShift;
+                    maddash.direction = Direction::RIGHT;
                     break;
                 case Direction::DOWN:
                     movement.y += bottomShift;
@@ -293,7 +290,7 @@ checkFieldWallsCollision(const Field &field, const sf::FloatRect &oldBounds, sf:
                     break;
                 case Direction::STOP:
                     movement.x -= rightShift + 3;
-                    maddash.direction = Direction::STOP;
+                    maddash.direction = Direction::ONLYDOWN;
                     break;
             }
             changed = true;
@@ -301,8 +298,4 @@ checkFieldWallsCollision(const Field &field, const sf::FloatRect &oldBounds, sf:
         }
     }
     return changed;
-}
-
-void destroyField(Field &field) {
-    delete[] field.cells;
 }
